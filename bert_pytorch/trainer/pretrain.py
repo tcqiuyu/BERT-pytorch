@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 
 from ..model import BERTLM, BERT
 from .optim_schedule import ScheduledOptim
-
+from .parallel import DataParallelModel, DataParallelCriterion
 import tqdm
 
 
@@ -48,7 +48,8 @@ class BERTTrainer:
         # Distributed GPU training if CUDA can detect more than 1 GPU
         if with_cuda and torch.cuda.device_count() > 1:
             print("Using %d GPUS for BERT" % torch.cuda.device_count())
-            self.model = nn.DataParallel(self.model, device_ids=cuda_devices)
+            self.model = DataParallelModel(self.model, device_ids=cuda_devices, output_device=cuda_devices)
+            # self.model = nn.DataParallel(self.model, device_ids=cuda_devices)
 
         # Setting the train and test data loader
         self.train_data = train_dataloader
@@ -60,7 +61,7 @@ class BERTTrainer:
 
         # Using Negative Log Likelihood Loss function for predicting the masked_token
         self.criterion = nn.NLLLoss(ignore_index=0)
-
+        self.criterion = DataParallelCriterion(self.criterion, device_ids=cuda_devices, output_device=cuda_devices)
         self.log_freq = log_freq
 
         print("Total Parameters:", sum([p.nelement() for p in self.model.parameters()]))
